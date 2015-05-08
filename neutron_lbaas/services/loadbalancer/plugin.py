@@ -745,7 +745,14 @@ class LoadBalancerPluginv2(loadbalancerv2.LoadBalancerPluginBaseV2):
 
         return self.db.get_pool(context, id).to_api_dict()
 
+    def _check_pool_has_healthmonitor(self, pool):
+        if pool.healthmonitor_id is not None:
+            raise loadbalancerv2.PoolHealthMonitorIsNotNone(
+                pool_id=pool.id, hm_id=pool.healthmonitor_id)
+
     def delete_pool(self, context, id):
+        old_pool = self.db.get_pool(context, id)
+        self._check_pool_has_healthmonitor(old_pool)
         self.db.test_and_set_status(context, models.PoolV2, id,
                                     constants.PENDING_DELETE)
         db_pool = self.db.get_pool(context, id)

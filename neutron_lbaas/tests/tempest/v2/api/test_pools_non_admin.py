@@ -586,3 +586,24 @@ class TestPools(base.BaseTestCase):
         self._delete_pool(new_pool.get('id'))
         self.assertRaises(ex.NotFound, self._delete_pool,
                           new_pool.get('id'))
+
+    @test.attr(type='negative')
+    def test_delete_pool_with_health_monitor(self):
+        new_pool = self._prepare_and_create_pool()
+        pool = self.pools_client.get_pool(new_pool.get('id'))
+        self.assertEqual(new_pool, pool)
+
+        new_hm = self._create_health_monitor(
+            type='HTTP', delay=3, max_retries=10, timeout=5,
+            pool_id=new_pool.get('id'))
+        hm = self.health_monitors_client.get_health_monitor(new_hm.get('id'))
+        self.assertEqual(new_hm, hm)
+
+        self.assertRaises(ex.Conflict, self._delete_pool,
+                          new_pool.get('id'))
+        # delete health monitor first
+        self._delete_health_monitor(hm.get('id'))
+        self._delete_pool(new_pool.get('id'))
+
+        self.assertRaises(ex.NotFound, self.pools_client.get_pool,
+                          new_pool.get('id'))

@@ -60,6 +60,10 @@ class OneHealthMonitorPerPool(nexception.InUse):
                 " is already using Health Monitor %(hm_id)s.")
 
 
+class PoolHealthMonitorIsNotNone(nexception.InUse):
+    message = _("Pool %(pool_id)s has binding Health Monitor %(hm_id)s.")
+
+
 class LoadBalancerListenerProtocolPortExists(nexception.Conflict):
     message = _("Load Balancer %(lb_id)s already has a listener with "
                 "protocol_port of %(protocol_port)s")
