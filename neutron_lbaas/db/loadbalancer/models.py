@@ -221,6 +221,40 @@ class SNI(model_base.BASEV2):
         return self.listener.loadbalancer
 
 
+class ACL(model_base.BASEV2, models_v2.HasId, models_v2.HasTenant):
+    """Represents an acl rule for listener(frontend).
+
+    Currently only for listener(frontend).
+    Pool(backend) acl not support yet."""
+
+    NAME = 'acl'
+
+    __tablename__ = "lbaas_acls"
+    __table_args__ = (
+        sa.schema.UniqueConstraint('listener_id', 'name',
+                                   name='uniq_resource_to_name'),
+    )
+
+    name = sa.Column(sa.String(255), nullable=False)
+    listener_id = sa.Column(sa.String(36),
+                            sa.ForeignKey("lbaas_listeners.id"),
+                            nullable=False)
+    description = sa.Column(sa.String(255), nullable=True)
+    action = sa.Column(sa.String(255), nullable=True)
+    condition = sa.Column(sa.String(255), nullable=True)
+    acl_type = sa.Column(sa.String(255), nullable=True)
+    operator = sa.Column(sa.String(255), nullable=True)
+    match = sa.Column(sa.String(255), nullable=True)
+    match_condition = sa.Column(sa.String(255), nullable=True)
+    admin_state_up = sa.Column(sa.Boolean(), nullable=False)
+    provisioning_status = sa.Column(sa.String(16), nullable=False)
+    operating_status = sa.Column(sa.String(16), nullable=False)
+
+    @property
+    def root_loadbalancer(self):
+        return self.listener.loadbalancer
+
+
 class Listener(model_base.BASEV2, models_v2.HasId, models_v2.HasTenant):
     """Represents a v2 neutron listener."""
 
@@ -265,6 +299,10 @@ class Listener(model_base.BASEV2, models_v2.HasId, models_v2.HasTenant):
         PoolV2, backref=orm.backref("listener", uselist=False), lazy='joined')
     loadbalancer = orm.relationship(
         LoadBalancer, backref=orm.backref("listeners"), lazy='joined')
+    acls = orm.relationship(ACL,
+                            backref=orm.backref("listener", uselist=False),
+                            cascade="all, delete-orphan",
+                            lazy='joined')
 
     @property
     def root_loadbalancer(self):

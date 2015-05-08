@@ -439,6 +439,7 @@ class BaseTestManager(base.BaseTestCase):
         self.driver = mock.Mock()
         self.lb_manager = namespace_driver.LoadBalancerManager(self.driver)
         self.listener_manager = namespace_driver.ListenerManager(self.driver)
+        self.acl_manager = namespace_driver.ACLManager(self.driver)
         self.pool_manager = namespace_driver.PoolManager(self.driver)
         self.member_manager = namespace_driver.MemberManager(self.driver)
         self.hm_manager = namespace_driver.HealthMonitorManager(self.driver)
@@ -573,6 +574,38 @@ class TestListenerManager(BaseTestListenerManager):
         self.listener_manager.delete(self.listener2)
         self.assertFalse(self.refresh.called)
         self.driver.undeploy_instance.assert_called_once_with(self.in_lb.id)
+
+
+class TestAclManager(BaseTestListenerManager):
+
+    def setUp(self):
+        super(TestAclManager, self).setUp()
+        self.in_listener = data_models.Listener(id='listener1')
+        self.listener2 = data_models.Listener(id='listener2')
+        self.in_lb.listeners = [self.in_listener, self.listener2]
+        self.in_listener.loadbalancer = self.in_lb
+        self.listener2.loadbalancer = self.in_lb
+        self.in_acl = data_models.ACL(id='acl1',
+                                      listener_id=self.in_listener.id,
+                                      listener=self.in_listener)
+        self.in_listener.acls.append(self.in_acl)
+        self.acl2 = data_models.ACL(id='acl2',
+                                    listener_id=self.listener2.id,
+                                    listener=self.listener2)
+        self.listener2.acls.append(self.acl2)
+
+    def test_update(self):
+        old_acl = data_models.ACL(id='acl1', action='newaction')
+        self.acl_manager.update(old_acl, self.in_acl)
+        self.refresh.assert_called_once_with(self.in_lb)
+
+    def test_create(self):
+        self.acl_manager.create(self.in_acl)
+        self.refresh.assert_called_once_with(self.in_lb)
+
+    def test_delete(self):
+        self.acl_manager.delete(self.in_acl)
+        self.assertFalse(self.driver.undeploy_instance.called)
 
 
 class BaseTestPoolManager(BaseTestListenerManager):

@@ -258,6 +258,35 @@ class TestManager(base.BaseTestCase):
                            operating_status=None)]
         self.rpc_mock.update_status.assert_has_calls(calls)
 
+    def test_update_statuses_acl(self):
+        self.update_statuses_patcher.stop()
+        acl = data_models.ACL(id='1')
+        listener = data_models.Listener(id='1')
+        acl.listener = listener
+        acl.listener_id = listener.id
+        lb = data_models.LoadBalancer(id='1', listeners=[listener])
+        listener.loadbalancer = lb
+        self.mgr._update_statuses(listener)
+        self.assertEqual(2, self.rpc_mock.update_status.call_count)
+        calls = [mock.call('listener', listener.id,
+                           provisioning_status=constants.ACTIVE,
+                           operating_status=lb_const.ONLINE),
+                 mock.call('loadbalancer', lb.id,
+                           provisioning_status=constants.ACTIVE,
+                           operating_status=None)]
+        self.rpc_mock.update_status.assert_has_calls(calls)
+
+        self.rpc_mock.update_status.reset_mock()
+        self.mgr._update_statuses(listener, error=True)
+        self.assertEqual(2, self.rpc_mock.update_status.call_count)
+        calls = [mock.call('listener', listener.id,
+                           provisioning_status=constants.ERROR,
+                           operating_status=lb_const.OFFLINE),
+                 mock.call('loadbalancer', lb.id,
+                           provisioning_status=constants.ACTIVE,
+                           operating_status=None)]
+        self.rpc_mock.update_status.assert_has_calls(calls)
+
     def test_update_statuses_pool(self):
         self.update_statuses_patcher.stop()
         pool = data_models.Pool(id='1')
@@ -478,6 +507,89 @@ class TestManager(base.BaseTestCase):
         mlistener.return_value = listener
         self.mgr.delete_listener(mock.Mock(), listener.to_dict())
         self.driver_mock.listener.delete.assert_called_once_with(listener)
+
+    @mock.patch.object(data_models.ACL, 'from_dict')
+    def test_create_acl(self, macl):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer,
+                                        protocol_port=80)
+        acl = data_models.ACL(id=1, listener_id=1,
+                              listener=listener)
+
+        self.assertIn(loadbalancer.id, self.mgr.instance_mapping)
+        macl.return_value = acl
+        self.mgr.create_acl(mock.Mock(), acl.to_dict())
+        self.driver_mock.acl.create.assert_called_once_with(acl)
+        self.update_statuses.assert_called_once_with(acl)
+
+    @mock.patch.object(data_models.ACL, 'from_dict')
+    def test_create_acl_failed(self, macl):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer,
+                                        protocol_port=80)
+        acl = data_models.ACL(id=1, listener_id=1,
+                              listener=listener)
+
+        self.assertIn(loadbalancer.id, self.mgr.instance_mapping)
+        self.driver_mock.acl.create.side_effect = Exception
+        macl.return_value = acl
+        self.mgr.create_acl(mock.Mock(), acl.to_dict())
+        self.driver_mock.acl.create.assert_called_once_with(acl)
+        self.update_statuses.assert_called_once_with(acl, error=True)
+
+    @mock.patch.object(data_models.ACL, 'from_dict')
+    def test_update_acl(self, macl):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer,
+                                        protocol_port=80)
+        old_acl = data_models.ACL(id=1, listener_id=1,
+                                  listener=listener,
+                                  action='action')
+        acl = data_models.ACL(id=1, listener_id=1,
+                              listener=listener,
+                              action='newaction')
+
+        macl.side_effect = [acl, old_acl]
+        self.mgr.update_acl(mock.Mock(),
+                            old_acl.to_dict(),
+                            acl.to_dict())
+        self.driver_mock.acl.update.assert_called_once_with(
+            old_acl, acl)
+        self.update_statuses.assert_called_once_with(acl)
+
+    @mock.patch.object(data_models.ACL, 'from_dict')
+    def test_update_acl_failed(self, macl):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer,
+                                        protocol_port=80)
+        old_acl = data_models.ACL(id=1, listener_id=1,
+                                  listener=listener,
+                                  action='action')
+        acl = data_models.ACL(id=1, listener_id=1,
+                              listener=listener,
+                              action='newaction')
+        macl.side_effect = [acl, old_acl]
+        self.driver_mock.acl.update.side_effect = Exception
+        self.mgr.update_acl(mock.Mock(), old_acl, acl)
+        self.driver_mock.acl.update.assert_called_once_with(old_acl,
+                                                            acl)
+        self.update_statuses.assert_called_once_with(acl, error=True)
+
+    @mock.patch.object(data_models.ACL, 'from_dict')
+    def test_delete_acl(self, macl):
+        loadbalancer = data_models.LoadBalancer(id='1')
+        listener = data_models.Listener(id=1, loadbalancer_id='1',
+                                        loadbalancer=loadbalancer,
+                                        protocol_port=80)
+        acl = data_models.ACL(id=1, listener_id=1,
+                              listener=listener)
+        macl.return_value = acl
+        self.mgr.delete_acl(mock.Mock(), acl.to_dict())
+        self.driver_mock.acl.delete.assert_called_once_with(acl)
 
     @mock.patch.object(data_models.Pool, 'from_dict')
     def test_create_pool(self, mpool):

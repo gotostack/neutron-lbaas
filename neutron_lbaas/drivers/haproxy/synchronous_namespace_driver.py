@@ -548,6 +548,52 @@ class ListenerManager(driver_base.BaseListenerManager):
         self.successful_completion(context, listener, delete=True)
 
 
+class ACLManager(driver_base.BaseACLManager):
+
+    def _remove_acl(self, listener, acl_id):
+        index_to_remove = None
+        for index, acl in enumerate(listener.acls):
+            if acl.id == acl_id:
+                index_to_remove = index
+        listener.acls.pop(index_to_remove)
+
+    def update(self, context, old_acl, new_acl):
+        super(ACLManager, self).update(context, old_acl,
+                                       new_acl)
+        try:
+            self.driver.load_balancer.refresh(
+                context, old_acl.listener.loadbalancer)
+        except Exception as e:
+            self.failed_completion(context, new_acl)
+            raise e
+
+        self.successful_completion(context, new_acl)
+
+    def create(self, context, acl):
+        super(ACLManager, self).create(context, acl)
+        try:
+            self.driver.load_balancer.refresh(
+                context, acl.listener.loadbalancer)
+        except Exception as e:
+            self.failed_completion(context, acl)
+            raise e
+
+        self.successful_completion(context, acl)
+
+    def delete(self, context, acl):
+        super(ACLManager, self).delete(context, acl)
+        listener = acl.listener
+        self._remove_acl(listener, acl.id)
+        try:
+            self.driver.load_balancer.refresh(
+                context, listener.loadbalancer)
+        except Exception as e:
+            self.failed_completion(context, acl)
+            raise e
+
+        self.successful_completion(context, acl, delete=True)
+
+
 class PoolManager(driver_base.BasePoolManager):
 
     def update(self, context, old_pool, new_pool):

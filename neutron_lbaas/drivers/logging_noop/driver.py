@@ -34,6 +34,7 @@ class LoggingNoopLoadBalancerDriver(driver_base.LoadBalancerBaseDriver):
 
         self.load_balancer = LoggingNoopLoadBalancerManager(self)
         self.listener = LoggingNoopListenerManager(self)
+        self.acl = LoggingNoopAclManager(self)
         self.pool = LoggingNoopPoolManager(self)
         self.member = LoggingNoopMemberManager(self)
         self.health_monitor = LoggingNoopHealthMonitorManager(self)
@@ -99,6 +100,22 @@ class LoggingNoopListenerManager(LoggingNoopCommonManager,
     def delete(self, context, listener):
         super(LoggingNoopListenerManager, self).delete(context, listener)
         self.successful_completion(context, listener, delete=True)
+
+
+class LoggingNoopAclManager(LoggingNoopCommonManager,
+                            driver_base.BaseAclManager):
+    def create(self, context, acl):
+        super(LoggingNoopAclManager, self).create(context, acl)
+        self.successful_completion(context, acl)
+
+    def update(self, context, old_acl, acl):
+        super(LoggingNoopAclManager, self).update(context, old_acl,
+                                                  acl)
+        self.successful_completion(context, acl)
+
+    def delete(self, context, acl):
+        super(LoggingNoopAclManager, self).delete(context, acl)
+        self.successful_completion(context, acl, delete=True)
 
 
 class LoggingNoopPoolManager(LoggingNoopCommonManager,

@@ -184,6 +184,34 @@ class TestHaproxyCfg(base.BaseTestCase):
         self.assertEqual(sample_configs.sample_base_expected_config(
             frontend=fe, backend=be), rendered_obj)
 
+    def test_render_template_frontend_with_acl(self):
+        fe = ("frontend sample_listener_id_1\n"
+              "    option tcplog\n"
+              "    maxconn 98\n"
+              "    bind 10.0.0.2:443\n"
+              "    mode tcp\n"
+              "    acl acl_name acl_action acl_condition\n"
+              "    acl_operator acl_match if acl_match_condition\n"
+              "    default_backend sample_pool_id_1\n\n")
+        be = ("backend sample_pool_id_1\n"
+              "    mode tcp\n"
+              "    balance roundrobin\n"
+              "    cookie SRV insert indirect nocache\n"
+              "    timeout check 31\n"
+              "    option httpchk GET /index.html\n"
+              "    http-check expect rstatus 405|404|500\n"
+              "    option ssl-hello-chk\n"
+              "    server sample_member_id_1 10.0.0.99:82 "
+              "weight 13 check inter 30s fall 3 cookie sample_member_id_1\n"
+              "    server sample_member_id_2 10.0.0.98:82 "
+              "weight 13 check inter 30s fall 3 cookie sample_member_id_2\n\n")
+        rendered_obj = jinja_cfg.render_loadbalancer_obj(
+            sample_configs.sample_loadbalancer_tuple(proto='HTTPS',
+                                                     acls=True),
+            'nogroup', '/sock_path', '/v2')
+        self.assertEqual(sample_configs.sample_base_expected_config(
+            frontend=fe, backend=be), rendered_obj)
+
     def test_render_template_no_monitor_http(self):
         be = ("backend sample_pool_id_1\n"
               "    mode http\n"
@@ -437,6 +465,11 @@ class TestHaproxyCfg(base.BaseTestCase):
         in_listener = sample_configs.sample_listener_tuple()
         ret = jinja_cfg._transform_listener(in_listener, '/v2')
         self.assertEqual(sample_configs.RET_LISTENER, ret)
+
+    def test_transform_listener_with_acl(self):
+        in_listener = sample_configs.sample_listener_tuple(acls=True)
+        ret = jinja_cfg._transform_listener(in_listener, '/v2')
+        self.assertEqual(sample_configs.RET_LISTENER_ACLS, ret)
 
     def test_transform_loadbalancer(self):
         in_lb = sample_configs.sample_loadbalancer_tuple()

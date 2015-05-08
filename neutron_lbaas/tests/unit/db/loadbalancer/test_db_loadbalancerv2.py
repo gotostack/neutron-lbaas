@@ -175,6 +175,35 @@ class LbaasTestMixin(object):
 
         return hm_res
 
+    def _get_acl_optional_args(self):
+        return ('description', 'admin_state_up', 'acl_type', 'match')
+
+    def _create_acl(self, fmt, name, listener_id,
+                    action, condition, operator, match_condition,
+                    expected_res_status=None, **kwargs):
+        data = {
+            "acl": {
+                "name": name,
+                "listener_id": listener_id,
+                "action": action,
+                "condition": condition,
+                "operator": operator,
+                "match_condition": match_condition,
+                "tenant_id": self._tenant_id
+            }
+        }
+        args = self._get_acl_optional_args()
+        for arg in args:
+            if arg in kwargs and kwargs[arg] is not None:
+                data['acl'][arg] = kwargs[arg]
+
+        acl_req = self.new_create_request('acls', data, fmt)
+        acl_res = acl_req.get_response(self.ext_api)
+        if expected_res_status:
+            self.assertEqual(acl_res.status_int, expected_res_status)
+
+        return acl_res
+
     @contextlib.contextmanager
     def loadbalancer(self, fmt=None, subnet=None, no_delete=False, **kwargs):
         if not fmt:
@@ -213,6 +242,27 @@ class LbaasTestMixin(object):
         yield listener
         if not no_delete:
             self._delete('listeners', listener['listener']['id'])
+
+    @contextlib.contextmanager
+    def acl(self, fmt=None, name='ACL_NAME', listener_id='listenerID1',
+            action='url_end', condition='/login',
+            operator='redirect location',
+            match_condition='if ACL_NAME', no_delete=False, **kwargs):
+        if not fmt:
+            fmt = self.fmt
+
+        res = self._create_acl(fmt, name, listener_id,
+                               action, condition,
+                               operator, match_condition, **kwargs)
+        if res.status_int >= webob.exc.HTTPClientError.code:
+            raise webob.exc.HTTPClientError(
+                explanation=_("Unexpected error code: %s") % res.status_int
+            )
+
+        acl = self.deserialize(fmt or self.fmt, res)
+        yield acl
+        if not no_delete:
+            self._delete('acls', acl['acl']['id'])
 
     @contextlib.contextmanager
     def pool(self, fmt=None, protocol='HTTP', lb_algorithm='ROUND_ROBIN',
@@ -1044,6 +1094,248 @@ class LbaasListenerTests(ListenerTestBase):
                     self._test_list_with_pagination(
                         'listener',
                         (listener3, listener2, listener1),
+                        ('name', 'desc'), 2, 2
+                    )
+
+
+class ListenerAclTestBase(ListenerTestBase):
+
+    def setUp(self):
+        super(ListenerAclTestBase, self).setUp()
+        listener_res = self._create_listener(self.fmt, lb_const.PROTOCOL_HTTP,
+                                             80, self.lb_id)
+        self.def_listener = self.deserialize(self.fmt, listener_res)
+        self.listener_id = self.def_listener['listener']['id']
+
+    def tearDown(self):
+        self._delete_listener_api(self.listener_id)
+        super(ListenerAclTestBase, self).tearDown()
+
+    def _create_acl_api(self, data):
+        req = self.new_create_request("acls", data, self.fmt)
+        resp = req.get_response(self.ext_api)
+        body = self.deserialize(self.fmt, resp)
+        return resp, body
+
+    def _update_acl_api(self, acl_id, data):
+        req = self.new_update_request('acls', data, acl_id)
+        resp = req.get_response(self.ext_api)
+        body = self.deserialize(self.fmt, resp)
+        return resp, body
+
+    def _delete_acl_api(self, acl_id):
+        req = self.new_delete_request('acls', acl_id)
+        resp = req.get_response(self.ext_api)
+        return resp
+
+    def _get_acl_api(self, acl_id):
+        req = self.new_show_request('acls', acl_id)
+        resp = req.get_response(self.ext_api)
+        body = self.deserialize(self.fmt, resp)
+        return resp, body
+
+    def _list_acls_api(self):
+        req = self.new_list_request('acls')
+        resp = req.get_response(self.ext_api)
+        body = self.deserialize(self.fmt, resp)
+        return resp, body
+
+
+class LbaasListenerAclTests(ListenerAclTestBase):
+
+    def test_create_acl(self, **extras):
+        expected = {
+            'name': 'ACL_NAME',
+            'description': '',
+            'listener_id': self.listener_id,
+            'action': 'url_end',
+            'condition': '/login',
+            'operator': 'redirect location',
+            'match_condition': 'if ACL_NAME',
+            'admin_state_up': True,
+            'tenant_id': self._tenant_id
+        }
+
+        expected.update(extras)
+
+        with self.acl(listener_id=self.listener_id, **extras) as acl:
+            acl_id = acl['acl'].get('id')
+            self.assertTrue(acl_id)
+
+            actual = {}
+            for k, v in acl['acl'].items():
+                if k in expected:
+                    actual[k] = v
+            self.assertEqual(actual, expected)
+            self._validate_statuses(self.lb_id, self.listener_id)
+        return acl
+
+    def test_create_acl_listener_id_does_not_exist(self):
+        self._create_acl(self.fmt,
+                         name='acl',
+                         listener_id=uuidutils.generate_uuid(),
+                         action='action',
+                         condition='condition',
+                         operator='operator',
+                         match_condition='match_condition',
+                         expected_res_status=404)
+
+    def test_show_acl(self, **extras):
+        expected = {
+            'name': 'ACL_NAME',
+            'description': '',
+            'listener_id': self.listener_id,
+            'action': 'url_end',
+            'condition': '/login',
+            'operator': 'redirect location',
+            'match_condition': 'if ACL_NAME',
+            'admin_state_up': True,
+            'tenant_id': self._tenant_id
+        }
+
+        expected.update(extras)
+
+        with self.acl(listener_id=self.listener_id) as acl:
+            acl_id = acl['acl'].get('id')
+            resp, body = self._get_acl_api(acl_id)
+            actual = {}
+            for k, v in body['acl'].items():
+                if k in expected:
+                    actual[k] = v
+            self.assertEqual(expected, actual)
+        return acl
+
+    def test_update_acl(self, **extras):
+        expected = {
+            'name': 'ACL_NAME',
+            'description': '',
+            'listener_id': self.listener_id,
+            'action': 'newaction',
+            'condition': '/login',
+            'operator': 'redirect location',
+            'match_condition': 'if ACL_NAME',
+            'admin_state_up': True,
+            'tenant_id': self._tenant_id
+        }
+
+        expected.update(extras)
+
+        with self.acl(listener_id=self.listener_id) as acl:
+            acl_id = acl['acl']['id']
+            self.assertTrue(acl_id)
+            data = {'acl': {'action': 'newaction'}}
+            resp, body = self._update_acl_api(acl_id, data)
+            actual = {}
+            for k, v in body['acl'].items():
+                if k in expected:
+                    actual[k] = v
+            self.assertEqual(expected, actual)
+            self._validate_statuses(self.lb_id, self.listener_id)
+
+        return acl
+
+    def test_delete_acl(self):
+        with self.acl(no_delete=True, listener_id=self.listener_id) as acl:
+            acl_id = acl['acl']['id']
+            ctx = context.get_admin_context()
+            qry = ctx.session.query(models.ACL)
+            qry = qry.filter_by(id=acl_id)
+            self.assertIsNotNone(qry.first())
+
+            resp = self._delete_acl_api(acl_id)
+            self.assertEqual(resp.status_int, webob.exc.HTTPNoContent.code)
+            qry = ctx.session.query(models.ACL)
+            qry = qry.filter_by(id=acl_id)
+            self.assertIsNone(qry.first())
+
+    def test_cannot_add_duplicated_acl_name_to_same_listener(self):
+        with self.acl(listener_id=self.listener_id):
+            data = {'acl': {'name': 'ACL_NAME',
+                            'tenant_id': self._tenant_id,
+                            'listener_id': self.listener_id,
+                            'action': 'action',
+                            'condition': 'condition',
+                            'operator': 'operator',
+                            'match_condition': 'match_condition'}}
+            resp, body = self._create_acl_api(data)
+            self.assertEqual(resp.status_int, webob.exc.HTTPConflict.code)
+
+    def test_update_acl_with_name(self):
+        with self.acl(listener_id=self.listener_id) as acl:
+            acl_id = acl['acl']['id']
+            data = {'acl': {'name': 'new name',
+                            'tenant_id': self._tenant_id}}
+            resp, body = self._update_acl_api(acl_id, data)
+            self.assertEqual(webob.exc.HTTPBadRequest.code, resp.status_int)
+
+    def test_list_acls(self):
+        name = 'ACL_NAME'
+        expected_values = {
+            'name': name,
+            'description': '',
+            'listener_id': self.listener_id,
+            'action': 'url_end',
+            'condition': '/login',
+            'operator': 'redirect location',
+            'match_condition': 'if ACL_NAME',
+            'admin_state_up': True,
+            'tenant_id': self._tenant_id
+        }
+
+        with self.acl(name=name, listener_id=self.listener_id) as acl:
+            acl_id = acl['acl']['id']
+            expected_values['id'] = acl_id
+            resp, body = self._list_acls_api()
+            acl_list = body['acls']
+            self.assertEqual(len(acl_list), 1)
+            for k in expected_values:
+                self.assertEqual(acl_list[0][k], expected_values[k])
+
+    def test_list_acls_with_sort_emulated(self):
+        with self.acl(name='acl1',
+                      action='a',
+                      listener_id=self.listener_id) as acl1:
+            with self.acl(name='acl2',
+                          action='b',
+                          listener_id=self.listener_id) as acl2:
+                with self.acl(name='acl3',
+                              action='c',
+                              listener_id=self.listener_id) as acl3:
+                    self._test_list_with_sort(
+                        'acl',
+                        (acl1, acl2, acl3),
+                        [('action', 'asc'), ('name', 'desc')]
+                    )
+
+    def test_list_acls_with_pagination_emulated(self):
+        with self.acl(name='acl1',
+                      action='a',
+                      listener_id=self.listener_id) as acl1:
+            with self.acl(name='acl2',
+                          action='b',
+                          listener_id=self.listener_id) as acl2:
+                with self.acl(name='acl3',
+                              action='c',
+                              listener_id=self.listener_id) as acl3:
+                    self._test_list_with_pagination(
+                        'acl',
+                        (acl1, acl2, acl3),
+                        ('name', 'asc'), 2, 2
+                    )
+
+    def test_list_acls_with_pagination_reverse_emulated(self):
+        with self.acl(name='acl1',
+                      action='a',
+                      listener_id=self.listener_id) as acl1:
+            with self.acl(name='acl2',
+                          action='b',
+                          listener_id=self.listener_id) as acl2:
+                with self.acl(name='acl3',
+                              action='c',
+                              listener_id=self.listener_id) as acl3:
+                    self._test_list_with_pagination(
+                        'acl',
+                        (acl3, acl2, acl1),
                         ('name', 'desc'), 2, 2
                     )
 

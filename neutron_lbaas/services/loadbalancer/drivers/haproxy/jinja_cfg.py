@@ -255,6 +255,10 @@ def _transform_listener(listener, haproxy_base_dir):
         'protocol_mode': PROTOCOL_MAP[listener.protocol],
         'protocol': listener.protocol
     }
+
+    if len(listener.acls) > 0:
+        ret_value['acls'] = _transform_acls(listener)
+
     if listener.connection_limit and listener.connection_limit > -1:
         ret_value['connection_limit'] = listener.connection_limit
     if listener.default_pool:
@@ -270,6 +274,27 @@ def _transform_listener(listener, haproxy_base_dir):
             _store_listener_crt(haproxy_base_dir, listener, c)
         ret_value['crt_dir'] = data_dir
     return ret_value
+
+
+def _transform_acls(listener):
+    """Transforms acls of a listener."""
+
+    def _get_acl_define(a):
+        return "acl %(name)s %(action)s %(condition)s" % {
+            "name": a.name,
+            "action": a.action,
+            "condition": a.condition}
+
+    def _get_acl_action(a):
+        return "%(operator)s %(match)s if %(match_condition)s" % {
+            "operator": a.operator,
+            "match": a.match,
+            "match_condition": a.match_condition}
+
+    acls = [{"acl_define": _get_acl_define(acl),
+             "acl_action": _get_acl_action(acl)}
+            for acl in listener.acls if acl.admin_state_up]
+    return acls
 
 
 def _transform_pool(pool):

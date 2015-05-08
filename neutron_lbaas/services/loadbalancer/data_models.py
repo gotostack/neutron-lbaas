@@ -28,10 +28,13 @@ and also converting to dictionaries.
 from neutron.db import model_base
 from neutron.db import models_v2
 from neutron.db import servicetype_db
+from oslo_log import log as logging
 from sqlalchemy.ext import orderinglist
 from sqlalchemy.orm import collections
 
 from neutron_lbaas.db.loadbalancer import models
+
+LOG = logging.getLogger(__name__)
 
 
 class BaseDataModel(object):
@@ -103,6 +106,8 @@ class BaseDataModel(object):
         elif isinstance(self, Pool):
             lb = self.listener.loadbalancer
         elif isinstance(self, SNI):
+            lb = self.listener.loadbalancer
+        elif isinstance(self, ACL):
             lb = self.listener.loadbalancer
         else:
             # Pool Member or Health Monitor
@@ -436,7 +441,8 @@ class Listener(BaseDataModel):
                  default_tls_container_id=None, sni_containers=None,
                  protocol_port=None, connection_limit=None,
                  admin_state_up=None, provisioning_status=None,
-                 operating_status=None, default_pool=None, loadbalancer=None):
+                 operating_status=None, default_pool=None, loadbalancer=None,
+                 acls=None):
         self.id = id
         self.tenant_id = tenant_id
         self.name = name
@@ -453,6 +459,7 @@ class Listener(BaseDataModel):
         self.provisioning_status = provisioning_status
         self.default_pool = default_pool
         self.loadbalancer = loadbalancer
+        self.acls = acls or []
 
     def attached_to_loadbalancer(self):
         return bool(self.loadbalancer)
@@ -469,6 +476,7 @@ class Listener(BaseDataModel):
             ret_dict['loadbalancers'].append({'id': self.loadbalancer.id})
         ret_dict['sni_container_ids'] = [container.tls_container_id
             for container in self.sni_containers]
+        ret_dict['acls'] = [acl.id for acl in self.acls]
         return ret_dict
 
     @classmethod
@@ -478,6 +486,9 @@ class Listener(BaseDataModel):
         sni_containers = model_dict.pop('sni_containers', [])
         model_dict['sni_containers'] = [SNI.from_dict(sni)
                                         for sni in sni_containers]
+        acls = model_dict.pop('acls', [])
+        model_dict['acls'] = [ACL.from_dict(acl)
+                              for acl in acls]
         if default_pool:
             model_dict['default_pool'] = Pool.from_dict(default_pool)
         if loadbalancer:
@@ -535,6 +546,48 @@ class LoadBalancer(BaseDataModel):
         return LoadBalancer(**model_dict)
 
 
+class ACL(BaseDataModel):
+
+    def __init__(self, id=None, tenant_id=None, listener_id=None, name=None,
+                 description=None, action=None, condition=None, acl_type=None,
+                 operator=None, match=None, match_condition=None,
+                 listener=None, operating_status=None,
+                 provisioning_status=None, admin_state_up=None):
+        self.id = id
+        self.tenant_id = tenant_id
+        self.listener_id = listener_id
+        self.name = name
+        self.description = description
+        self.action = action
+        self.condition = condition
+        self.acl_type = acl_type
+        self.operator = operator
+        self.match = match
+        self.match_condition = match_condition
+        self.listener = listener
+        self.operating_status = operating_status
+        self.provisioning_status = provisioning_status
+        self.admin_state_up = admin_state_up
+
+    def attached_to_loadbalancer(self):
+        return bool(self.listener_id and self.listener)
+
+    def to_api_dict(self):
+        ret_dict = super(ACL, self).to_dict(
+            listener=False, operating_status=False, provisioning_status=False)
+        ret_dict['listeners'] = []
+        if self.listener:
+            ret_dict['listeners'].append({'id': self.listener.id})
+        return ret_dict
+
+    @classmethod
+    def from_dict(cls, model_dict):
+        listener = model_dict.pop('listener', [])
+        if listener:
+            model_dict['listener'] = Listener.from_dict(listener)
+        return ACL(**model_dict)
+
+
 SA_MODEL_TO_DATA_MODEL_MAP = {
     models.LoadBalancer: LoadBalancer,
     models.HealthMonitorV2: HealthMonitor,
@@ -542,6 +595,7 @@ SA_MODEL_TO_DATA_MODEL_MAP = {
     models.SNI: SNI,
     models.PoolV2: Pool,
     models.MemberV2: Member,
+    models.ACL: ACL,
     models.LoadBalancerStatistics: LoadBalancerStatistics,
     models.SessionPersistenceV2: SessionPersistence,
     models_v2.IPAllocation: IPAllocation,
@@ -556,6 +610,7 @@ DATA_MODEL_TO_SA_MODEL_MAP = {
     SNI: models.SNI,
     Pool: models.PoolV2,
     Member: models.MemberV2,
+    ACL: models.ACL,
     LoadBalancerStatistics: models.LoadBalancerStatistics,
     SessionPersistence: models.SessionPersistenceV2,
     IPAllocation: models_v2.IPAllocation,

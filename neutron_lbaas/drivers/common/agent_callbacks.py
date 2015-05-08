@@ -127,7 +127,8 @@ class LoadBalancerCallbacks(object):
             'pool': db_models.PoolV2,
             'listener': db_models.Listener,
             'member': db_models.MemberV2,
-            'healthmonitor': db_models.HealthMonitorV2
+            'healthmonitor': db_models.HealthMonitorV2,
+            'acl': db_models.ACL
         }
         if obj_type not in model_mapping:
             raise n_exc.Invalid(_('Unknown object type: %s') % obj_type)

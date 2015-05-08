@@ -15,6 +15,7 @@
 import os
 import time
 from neutron.i18n import _, _LI
+from neutron_lbaas.tests.tempest.v2.clients import acls_client
 from neutron_lbaas.tests.tempest.v2.clients import health_monitors_client
 from neutron_lbaas.tests.tempest.v2.clients import listeners_client
 from neutron_lbaas.tests.tempest.v2.clients import load_balancers_client
@@ -54,6 +55,7 @@ class BaseTestCase(base.BaseNetworkTest):
             load_balancers_client.LoadBalancersClientJSON(*client_args))
         cls.listeners_client = (
             listeners_client.ListenersClientJSON(*client_args))
+        cls.acls_client = acls_client.AclsClientJSON(*client_args)
         cls.pools_client = pools_client.PoolsClientJSON(*client_args)
         cls.members_client = members_client.MembersClientJSON(*client_args)
         cls.health_monitors_client = (
@@ -204,6 +206,28 @@ class BaseTestCase(base.BaseNetworkTest):
             cls._wait_for_load_balancer_status(
                 cls.load_balancer.get('id'))
         return listener
+
+    @classmethod
+    def _create_acl(cls, wait=True, **acl_kwargs):
+        acl = cls.acls_client.create_acl(**acl_kwargs)
+        if wait:
+            cls._wait_for_load_balancer_status(cls.load_balancer.get('id'))
+        return acl
+
+    @classmethod
+    def _delete_acl(cls, acl_id, wait=True):
+        cls.acls_client.delete_acl(acl_id)
+        if wait:
+            cls._wait_for_load_balancer_status(cls.load_balancer.get('id'))
+
+    @classmethod
+    def _update_acl(cls, acl_id, wait=True, **acl_kwargs):
+        acl = cls.acls_client.update_acl(
+            acl_id, **acl_kwargs)
+        if wait:
+            cls._wait_for_load_balancer_status(
+                cls.load_balancer.get('id'))
+        return acl
 
     @classmethod
     def _create_pool(cls, wait=True, **pool_kwargs):

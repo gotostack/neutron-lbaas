@@ -404,3 +404,31 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
         healthmonitor = data_models.HealthMonitor.from_dict(healthmonitor)
         driver = self._get_driver(healthmonitor.pool.listener.loadbalancer.id)
         driver.healthmonitor.delete(healthmonitor)
+
+    def create_acl(self, context, acl):
+        acl = data_models.ACL.from_dict(acl)
+        driver = self._get_driver(acl.listener.loadbalancer.id)
+        try:
+            driver.acl.create(acl)
+        except Exception:
+            self._handle_failed_driver_call('create', acl,
+                                            driver.get_name())
+        else:
+            self._update_statuses(acl)
+
+    def update_acl(self, context, old_acl, acl):
+        acl = data_models.ACL.from_dict(acl)
+        old_acl = data_models.ACL.from_dict(old_acl)
+        driver = self._get_driver(acl.listener.loadbalancer.id)
+        try:
+            driver.acl.update(old_acl, acl)
+        except Exception:
+            self._handle_failed_driver_call('update', acl,
+                                            driver.get_name())
+        else:
+            self._update_statuses(acl)
+
+    def delete_acl(self, context, acl):
+        acl = data_models.ACL.from_dict(acl)
+        driver = self._get_driver(acl.listener.loadbalancer.id)
+        driver.acl.delete(acl)

@@ -1051,3 +1051,69 @@ class LoadBalancerPluginv2(loadbalancerv2.LoadBalancerPluginBaseV2):
 
     def get_member(self, context, id, fields=None):
         pass
+
+    def _check_listener_exists(self, context, listener_id):
+        if not self.db._resource_exists(context, models.Listener, listener_id):
+            raise loadbalancerv2.EntityNotFound(
+                name=models.Listener.NAME, id=listener_id)
+
+    def create_acl(self, context, acl):
+        acl = acl.get('acl')
+        listener_id = acl.get('listener_id')
+        self._check_listener_exists(context, listener_id)
+        db_listener = self.db.get_listener(context, listener_id)
+        self.db.test_and_set_status(context, models.LoadBalancer,
+                                    db_listener.loadbalancer.id,
+                                    constants.PENDING_UPDATE)
+
+        try:
+            acl_db = self.db.create_acl(context, acl)
+        except Exception as exc:
+            self.db.update_loadbalancer_provisioning_status(
+                context, db_listener.loadbalancer.id)
+            raise exc
+        driver = self._get_driver_for_loadbalancer(
+            context, db_listener.loadbalancer.id)
+        self._call_driver_operation(
+            context, driver.acl.create, acl_db)
+
+        return self.db.get_acl(context, acl_db.id).to_api_dict()
+
+    def update_acl(self, context, id, acl):
+        acl = acl.get('acl')
+        old_acl = self.db.get_acl(context, id)
+        self.db.test_and_set_status(context, models.LoadBalancer,
+                                    old_acl.listener.loadbalancer_id,
+                                    constants.PENDING_UPDATE)
+        try:
+            updated_acl = self.db.update_acl(context, id, acl)
+        except Exception as exc:
+            self.db.update_loadbalancer_provisioning_status(
+                context, old_acl.listener.loadbalancer.id)
+            raise exc
+
+        driver = self._get_driver_for_loadbalancer(
+            context, updated_acl.listener.loadbalancer.id)
+        self._call_driver_operation(context,
+                                    driver.acl.update,
+                                    updated_acl,
+                                    old_db_entity=old_acl)
+
+        return self.db.get_acl(context, updated_acl.id).to_api_dict()
+
+    def delete_acl(self, context, id):
+        db_acl = self.db.get_acl(context, id)
+        self.db.test_and_set_status(context, models.ACL, id,
+                                    constants.PENDING_DELETE)
+
+        driver = self._get_driver_for_loadbalancer(
+            context, db_acl.listener.loadbalancer.id)
+        self._call_driver_operation(
+            context, driver.acl.delete, db_acl)
+
+    def get_acl(self, context, id, fields=None):
+        return self.db.get_acl(context, id).to_api_dict()
+
+    def get_acls(self, context, filters=None, fields=None):
+        return [acl.to_api_dict() for acl in self.db.get_acls(
+            context, filters=filters)]

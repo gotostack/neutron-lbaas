@@ -46,6 +46,14 @@ frontend {{ listener.id }}
 {% endif %}
     {{ bind_macro(constants, listener, lb_vip_address)|trim() }}
     mode {{ listener.protocol_mode }}
+{% if listener.acls is defined %}
+{% for acl in listener.acls %}
+    {{ acl.acl_define}}
+{% endfor %}
+{% for acl in listener.acls %}
+    {{ acl.acl_action}}
+{% endfor %}
+{% endif %}
 {% if listener.default_pool %}
     default_backend {{ listener.default_pool.id }}
 {% endif %}

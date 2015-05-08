@@ -59,6 +59,7 @@ class LoadBalancerPluginDbv2(base_db.CommonDbMixin,
             with excutils.save_and_reraise_exception(reraise=False) as ctx:
                 if issubclass(model, (models.LoadBalancer, models.Listener,
                                       models.PoolV2, models.MemberV2,
+                                      models.ACL,
                                       models.HealthMonitorV2,
                                       models.LoadBalancerStatistics,
                                       models.SessionPersistenceV2)):
@@ -549,3 +550,51 @@ class LoadBalancerPluginDbv2(base_db.CommonDbMixin,
                                           loadbalancer_id)
         return data_models.LoadBalancerStatistics.from_sqlalchemy_model(
             loadbalancer.stats)
+
+    def _validate_listener_id_data(self, context, acl):
+        listener_id = acl.get('listener_id')
+        if listener_id:
+            if not self._resource_exists(
+                context, models.Listener, listener_id):
+                raise loadbalancerv2.EntityNotFound(
+                    name=models.Listener.NAME, id=listener_id)
+
+    def create_acl(self, context, acl):
+        try:
+            with context.session.begin(subtransactions=True):
+                self._load_id_and_tenant_id(context, acl)
+                if acl.get('listener_id') == attributes.ATTR_NOT_SPECIFIED:
+                    acl['listener_id'] = None
+                acl['provisioning_status'] = constants.PENDING_CREATE
+                acl['operating_status'] = lb_const.OFFLINE
+                self._validate_listener_id_data(context, acl)
+                acl_db_entry = models.ACL(**acl)
+                context.session.add(acl_db_entry)
+        except exception.DBDuplicateEntry:
+            raise loadbalancerv2.DuplicatedACLNameInSameResource(
+                name=acl['name'],
+                listener_id=acl['listener_id'])
+        context.session.refresh(acl_db_entry.listener.loadbalancer)
+        ret_model = data_models.ACL.from_sqlalchemy_model(acl_db_entry)
+        return ret_model
+
+    def update_acl(self, context, id, acl):
+        with context.session.begin(subtransactions=True):
+            acl_db = self._get_resource(context, models.ACL, id)
+            acl_db.update(acl)
+        context.session.refresh(acl_db)
+        return data_models.ACL.from_sqlalchemy_model(acl_db)
+
+    def delete_acl(self, context, id):
+        with context.session.begin(subtransactions=True):
+            acl_db = self._get_resource(context, models.ACL, id)
+            context.session.delete(acl_db)
+
+    def get_acls(self, context, filters=None):
+        acl_dbs = self._get_resources(context, models.ACL, filters=filters)
+        return [data_models.ACL.from_sqlalchemy_model(acl_db)
+                for acl_db in acl_dbs]
+
+    def get_acl(self, context, id):
+        acl_db = self._get_resource(context, models.ACL, id)
+        return data_models.ACL.from_sqlalchemy_model(acl_db)

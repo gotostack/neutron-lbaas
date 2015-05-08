@@ -39,6 +39,7 @@ class LoadBalancerBaseDriver(object):
 
     load_balancer = NotImplementedManager()
     listener = NotImplementedManager()
+    acl = NotImplementedManager()
     pool = NotImplementedManager()
     member = NotImplementedManager()
     health_monitor = NotImplementedManager()
@@ -65,6 +66,14 @@ class BaseListenerManager(driver_mixins.BaseManagerMixin):
         return self.driver.plugin.db.delete_listener
 
 
+class BaseAclManager(driver_mixins.BaseManagerMixin):
+    model_class = models.ACL
+
+    @property
+    def db_delete_method(self):
+        return self.driver.plugin.db.delete_acl
+
+
 class BasePoolManager(driver_mixins.BaseManagerMixin):
     model_class = models.PoolV2
 
@@ -87,3 +96,11 @@ class BaseHealthMonitorManager(driver_mixins.BaseManagerMixin):
     @property
     def db_delete_method(self):
         return self.driver.plugin.db.delete_healthmonitor
+
+
+class BaseACLManager(driver_mixins.BaseManagerMixin):
+    model_class = models.ACL
+
+    @property
+    def db_delete_method(self):
+        return self.driver.plugin.db.delete_acl

@@ -144,6 +144,19 @@ class LoadBalancerAgentApi(object):
         cctxt.cast(context, 'delete_healthmonitor',
                    healthmonitor=healthmonitor)
 
+    def create_acl(self, context, acl, host):
+        cctxt = self.client.prepare(server=host)
+        cctxt.cast(context, 'create_acl', acl=acl)
+
+    def update_acl(self, context, old_acl, acl, host):
+        cctxt = self.client.prepare(server=host)
+        cctxt.cast(context, 'update_acl', old_acl=old_acl,
+                   acl=acl)
+
+    def delete_acl(self, context, acl, host):
+        cctxt = self.client.prepare(server=host)
+        cctxt.cast(context, 'delete_acl', acl=acl)
+
 
 class LoadBalancerManager(driver_base.BaseLoadBalancerManager):
 
@@ -299,6 +312,34 @@ class HealthMonitorManager(driver_base.BaseHealthMonitorManager):
             context, healthmonitor, agent['host'])
 
 
+class ACLManager(driver_base.BaseACLManager):
+
+    def update(self, context, old_acl, acl):
+        super(ACLManager, self).update(context, old_acl, acl)
+        agent = self.driver.get_loadbalancer_agent(
+            context, acl.listener.loadbalancer.id)
+        self.driver.agent_rpc.update_acl(context, old_acl, acl,
+                                         agent['host'])
+
+    def create(self, context, acl):
+        super(ACLManager, self).create(context, acl)
+        agent = self.driver.get_loadbalancer_agent(
+            context, acl.listener.loadbalancer.id)
+        self.driver.agent_rpc.create_acl(context, acl, agent['host'])
+
+    def delete(self, context, acl):
+        super(ACLManager, self).delete(context, acl)
+        agent = self.driver.get_loadbalancer_agent(
+            context, acl.listener.loadbalancer.id)
+        # TODO(blogan): Rethink deleting from the database and updating the lb
+        # status here. May want to wait until the agent actually deletes it.
+        # Doing this now to keep what v1 had.
+        self.driver.plugin.db.delete_acl(context, acl.id)
+        self.driver.plugin.db.update_loadbalancer_provisioning_status(
+            context, acl.listener.loadbalancer.id)
+        self.driver.agent_rpc.delete_acl(context, acl, agent['host'])
+
+
 class AgentDriverBase(driver_base.LoadBalancerBaseDriver):
 
     # name of device driver that should be used by the agent;
@@ -315,6 +356,7 @@ class AgentDriverBase(driver_base.LoadBalancerBaseDriver):
         self.pool = PoolManager(self)
         self.member = MemberManager(self)
         self.health_monitor = HealthMonitorManager(self)
+        self.acl = ACLManager(self)
 
         self.agent_rpc = LoadBalancerAgentApi(lb_const.LOADBALANCER_AGENTV2)
 

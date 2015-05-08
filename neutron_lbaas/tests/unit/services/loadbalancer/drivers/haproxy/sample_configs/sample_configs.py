@@ -62,6 +62,9 @@ RET_DEF_TLS_CONT = {'id': 'cont_id_1', 'allencompassingpem': 'imapem'}
 RET_SNI_CONT_1 = {'id': 'cont_id_2', 'allencompassingpem': 'imapem2'}
 RET_SNI_CONT_2 = {'id': 'cont_id_3', 'allencompassingpem': 'imapem3'}
 
+ACLS_TRAS_1 = {'acl_action': 'acl_operator acl_match if acl_match_condition',
+               'acl_define': 'acl acl_name acl_action acl_condition'}
+
 RET_LISTENER = {
     'id': 'sample_listener_id_1',
     'protocol_port': '80',
@@ -69,6 +72,15 @@ RET_LISTENER = {
     'protocol_mode': 'http',
     'default_pool': RET_POOL,
     'connection_limit': 98}
+
+RET_LISTENER_ACLS = {
+    'id': 'sample_listener_id_1',
+    'protocol_port': '80',
+    'protocol': 'HTTP',
+    'protocol_mode': 'http',
+    'default_pool': RET_POOL,
+    'connection_limit': 98,
+    'acls': [ACLS_TRAS_1, ]}
 
 RET_LISTENER_TLS = {
     'id': 'sample_listener_id_1',
@@ -112,7 +124,8 @@ RET_LB_TLS_SNI = {
 
 
 def sample_loadbalancer_tuple(proto=None, monitor=True, persistence=True,
-                              persistence_type=None, tls=False, sni=False):
+                              persistence_type=None, tls=False, sni=False,
+                              acls=None):
     proto = 'HTTP' if proto is None else proto
     in_lb = collections.namedtuple(
         'loadbalancer', 'id, name, vip_address, protocol, vip_port, '
@@ -127,7 +140,8 @@ def sample_loadbalancer_tuple(proto=None, monitor=True, persistence=True,
                                          persistence=persistence,
                                          persistence_type=persistence_type,
                                          tls=tls,
-                                         sni=sni)]
+                                         sni=sni,
+                                         acls=acls)]
     )
 
 
@@ -139,11 +153,12 @@ def sample_vip_port_tuple():
 
 
 def sample_listener_tuple(proto=None, monitor=True, persistence=True,
-                          persistence_type=None, tls=False, sni=False):
+                          persistence_type=None, tls=False, sni=False,
+                          acls=False):
     proto = 'HTTP' if proto is None else proto
     port = '443' if proto is 'HTTPS' or proto is 'TERMINATED_HTTPS' else '80'
     in_listener = collections.namedtuple(
-        'listener', 'id, protocol_port, protocol, default_pool, '
+        'listener', 'id, protocol_port, protocol, acls, default_pool, '
                     'connection_limit, default_tls_container_id, '
                     'sni_container_ids, default_tls_container, '
                     'sni_containers')
@@ -151,6 +166,7 @@ def sample_listener_tuple(proto=None, monitor=True, persistence=True,
         id='sample_listener_id_1',
         protocol_port=port,
         protocol=proto,
+        acls=[sample_acl_tuple('acl_id_1')] if acls else [],
         default_pool=sample_pool_tuple(
             proto=proto, monitor=monitor, persistence=persistence,
             persistence_type=persistence_type),
@@ -180,6 +196,24 @@ def sample_listener_tuple(proto=None, monitor=True, persistence=True,
                     primary_cn='fakeCN2'))]
         if sni else []
     )
+
+
+def sample_acl_tuple(id, admin_state_up=True, status='ACTIVE'):
+    in_acl = collections.namedtuple(
+        'acl', 'id, name, '
+               'action, condition, '
+               'operator, match, match_condition, '
+               'provisioning_status, admin_state_up')
+    return in_acl(
+        id=id,
+        name="acl_name",
+        action="acl_action",
+        condition="acl_condition",
+        operator="acl_operator",
+        match="acl_match",
+        match_condition="acl_match_condition",
+        admin_state_up=admin_state_up,
+        provisioning_status=status)
 
 
 def sample_tls_sni_container_tuple(tls_container=None, tls_container_id=None):

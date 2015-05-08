@@ -652,6 +652,100 @@ class LoadBalancerExtensionV2TestCase(base.ExtensionTestCase):
     def test_listener_delete(self):
         self._test_entity_delete('listener')
 
+    def test_acl_create(self):
+        acl_id = _uuid()
+        data = {'acl': {
+            'tenant_id': _uuid(),
+            'name': 'ACL_NAME',
+            'description': '',
+            'listener_id': _uuid(),
+            'action': 'url_end',
+            'condition': '/login',
+            'acl_type': 'Redirect',
+            'operator': 'redirect location',
+            'match': 'http://mysite.com/',
+            'match_condition': 'if ACL_NAME',
+            'admin_state_up': True}}
+        return_value = copy.copy(data['acl'])
+        return_value.update({'id': acl_id})
+
+        instance = self.plugin.return_value
+        instance.create_acl.return_value = return_value
+
+        res = self.api.post(_get_path('lbaas/acls', fmt=self.fmt),
+                            self.serialize(data),
+                            content_type='application/{0}'.format(self.fmt))
+        instance.create_acl.assert_called_with(mock.ANY,
+                                               acl=data)
+
+        self.assertEqual(res.status_int, exc.HTTPCreated.code)
+        res = self.deserialize(res)
+        self.assertIn('acl', res)
+        self.assertEqual(res['acl'], return_value)
+
+    def test_acl_list(self):
+        acl_id = _uuid()
+        return_value = [{'admin_state_up': True,
+                         'tenant_id': _uuid(),
+                         'id': acl_id}]
+
+        instance = self.plugin.return_value
+        instance.get_acls.return_value = return_value
+
+        res = self.api.get(_get_path('lbaas/acls', fmt=self.fmt))
+
+        instance.get_acls.assert_called_with(mock.ANY,
+                                             fields=mock.ANY,
+                                             filters=mock.ANY)
+        self.assertEqual(res.status_int, exc.HTTPOk.code)
+
+    def test_acl_update(self):
+        acl_id = _uuid()
+        update_data = {'acl': {'admin_state_up': False}}
+        return_value = {'name': 'acl1',
+                        'admin_state_up': False,
+                        'tenant_id': _uuid(),
+                        'id': acl_id}
+
+        instance = self.plugin.return_value
+        instance.update_acl.return_value = return_value
+
+        res = self.api.put(_get_path('lbaas/acls',
+                                     id=acl_id,
+                                     fmt=self.fmt),
+                           self.serialize(update_data))
+
+        instance.update_acl.assert_called_with(
+            mock.ANY, acl_id, acl=update_data)
+        self.assertEqual(res.status_int, exc.HTTPOk.code)
+        res = self.deserialize(res)
+        self.assertIn('acl', res)
+        self.assertEqual(res['acl'], return_value)
+
+    def test_acl_get(self):
+        acl_id = _uuid()
+        return_value = {'name': 'acl1',
+                        'admin_state_up': False,
+                        'tenant_id': _uuid(),
+                        'id': acl_id}
+
+        instance = self.plugin.return_value
+        instance.get_acl.return_value = return_value
+
+        res = self.api.get(_get_path('lbaas/acls',
+                                     id=acl_id,
+                                     fmt=self.fmt))
+
+        instance.get_acl.assert_called_with(mock.ANY, acl_id,
+                                            fields=mock.ANY)
+        self.assertEqual(res.status_int, exc.HTTPOk.code)
+        res = self.deserialize(res)
+        self.assertIn('acl', res)
+        self.assertEqual(res['acl'], return_value)
+
+    def test_acl_delete(self):
+        self._test_entity_delete('acl')
+
     def test_pool_create(self):
         pool_id = _uuid()
         data = {'pool': {'name': 'pool1',

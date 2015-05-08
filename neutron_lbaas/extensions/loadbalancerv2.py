@@ -118,6 +118,11 @@ class TLSContainerInvalid(nexception.NeutronException):
     message = _("TLS container %(container_id)s is invalid. %(reason)s")
 
 
+class DuplicatedACLNameInSameResource(nexception.Conflict):
+    message = _("Duplicated ACL name %(name)s in same"
+                " listener %(listener_id)s.")
+
+
 RESOURCE_ATTRIBUTE_MAP = {
     'loadbalancers': {
         'id': {'allow_post': False, 'allow_put': False,
@@ -303,6 +308,74 @@ RESOURCE_ATTRIBUTE_MAP = {
                 'type:regex': r'^(\d{3}(\s*,\s*\d{3})*)$|^(\d{3}-\d{3})$'
             },
             'default': '200',
+            'is_visible': True
+        },
+        'admin_state_up': {'allow_post': True, 'allow_put': True,
+                           'default': True,
+                           'convert_to': attr.convert_to_boolean,
+                           'is_visible': True}
+    },
+    'acls': {
+        'id': {'allow_post': False, 'allow_put': False,
+               'validate': {'type:uuid': None},
+               'is_visible': True,
+               'primary_key': True},
+        'tenant_id': {'allow_post': True, 'allow_put': False,
+                      'validate': {'type:string': None},
+                      'required_by_policy': True,
+                      'is_visible': True},
+        'name': {
+            'allow_post': True,
+            'allow_put': True,
+            'validate': {
+                'type:regex': r'^[a-zA-Z0-9_][a-zA-Z0-9_]{2,31}$'
+            },
+            'is_visible': True
+        },
+        'listener_id': {'allow_post': True, 'allow_put': False,
+                        'validate': {'type:uuid': None},
+                        'is_visible': True},
+        'loadbalancers': {'allow_post': False, 'allow_put': False,
+                          'is_visible': True},
+        'description': {'allow_post': True, 'allow_put': True,
+                        'validate': {'type:string': None},
+                        'is_visible': True, 'default': ''},
+        'action': {
+            'allow_post': True,
+            'allow_put': True,
+            'validate': {
+                'type:regex': r'^.{1,}$'
+            },
+            'is_visible': True
+        },
+        'condition': {
+            'allow_post': True,
+            'allow_put': True,
+            'validate': {
+                'type:regex': r'^.{1,}$'
+            },
+            'is_visible': True
+        },
+        'acl_type': {'allow_post': True, 'allow_put': True,
+                     'validate': {'type:string': None},
+                     'is_visible': True, 'default': ''},
+        'operator': {
+            'allow_post': True,
+            'allow_put': True,
+            'validate': {
+                'type:regex': r'^.{1,}$'
+            },
+            'is_visible': True
+        },
+        'match': {'allow_post': True, 'allow_put': True,
+                  'validate': {'type:string': None},
+                  'is_visible': True, 'default': ''},
+        'match_condition': {
+            'allow_post': True,
+            'allow_put': True,
+            'validate': {
+                'type:regex': r'^[a-zA-Z0-9_\!][\w \!\-_].*$'
+            },
             'is_visible': True
         },
         'admin_state_up': {'allow_post': True, 'allow_put': True,
@@ -582,4 +655,24 @@ class LoadBalancerPluginBaseV2(service_base.ServicePluginBase):
 
     @abc.abstractmethod
     def statuses(self, context, loadbalancer_id):
+        pass
+
+    @abc.abstractmethod
+    def create_acl(self, context, acl):
+        pass
+
+    @abc.abstractmethod
+    def delete_acl(self, context, id):
+        pass
+
+    @abc.abstractmethod
+    def update_acl(self, context, id, acl):
+        pass
+
+    @abc.abstractmethod
+    def get_acl(self, context, id, fields=None):
+        pass
+
+    @abc.abstractmethod
+    def get_acls(self, context, filters=None, fields=None):
         pass
