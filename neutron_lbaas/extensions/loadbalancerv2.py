@@ -346,7 +346,8 @@ SUB_RESOURCE_ATTRIBUTE_MAP = {
                                'convert_to': attr.convert_to_boolean,
                                'is_visible': True},
             'subnet_id': {'allow_post': True, 'allow_put': False,
-                          'validate': {'type:uuid': None},
+                          'validate': {'type:uuid_or_none': None},
+                          'default': None,
                           'is_visible': True},
 
         }
