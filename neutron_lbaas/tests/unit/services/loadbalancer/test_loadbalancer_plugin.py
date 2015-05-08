@@ -476,7 +476,8 @@ class LoadBalancerExtensionV2TestCase(base.ExtensionTestCase):
                                  'tenant_id': _uuid(),
                                  'vip_subnet_id': _uuid(),
                                  'admin_state_up': True,
-                                 'vip_address': '127.0.0.1'}}
+                                 'vip_address': '127.0.0.1',
+                                 'agent': None}}
         return_value = copy.copy(data['loadbalancer'])
         return_value.update({'id': lb_id})
 

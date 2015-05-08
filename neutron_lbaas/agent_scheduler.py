@@ -141,3 +141,56 @@ class ChanceScheduler(object):
                     'agent_id': chosen_agent['id']}
             )
             return chosen_agent
+
+
+class SpecificAgentScheduler(object):
+    """Create loadbalancer to a specific agent."""
+
+    def schedule(self, plugin, context, loadbalancer, device_driver):
+        """Schedule the load balancer to an active loadbalancer agent if there
+        is no enabled agent hosting it.
+        """
+        with context.session.begin(subtransactions=True):
+            lbaas_agent = plugin.db.get_agent_hosting_loadbalancer(
+                context, loadbalancer.id)
+            if lbaas_agent:
+                LOG.debug('Load balancer %(loadbalancer_id)s '
+                          'has already been hosted'
+                          ' by lbaas agent %(agent_id)s',
+                          {'loadbalancer_id': loadbalancer.id,
+                           'agent_id': lbaas_agent['id']})
+                return
+
+            active_agents = plugin.db.get_lbaas_agents(context, active=True)
+            if not active_agents:
+                LOG.warn(
+                    _LW('No active lbaas agents for load balancer %s'),
+                    loadbalancer.id)
+                return
+
+            candidates = plugin.db.get_lbaas_agent_candidates(device_driver,
+                                                              active_agents)
+            if not candidates:
+                LOG.warn(_LW('No lbaas agent supporting device driver %s'),
+                         device_driver)
+                return
+
+            try:
+                agent_dict = dict([(a.id, a) for a in candidates])
+                chosen_agent = agent_dict.get(loadbalancer.agent)
+            except Exception:
+                chosen_agent = random.choice(candidates)
+            if chosen_agent is None:
+                chosen_agent = random.choice(candidates)
+
+            binding = LoadbalancerAgentBinding()
+            binding.agent = chosen_agent
+            binding.loadbalancer_id = loadbalancer.id
+            context.session.add(binding)
+            LOG.debug(
+                'Load balancer %(loadbalancer_id)s is scheduled '
+                'to lbaas agent %(agent_id)s', {
+                    'loadbalancer_id': loadbalancer.id,
+                    'agent_id': chosen_agent['id']}
+            )
+            return chosen_agent

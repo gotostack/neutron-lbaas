@@ -156,7 +156,11 @@ RESOURCE_ATTRIBUTE_MAP = {
         'provisioning_status': {'allow_post': False, 'allow_put': False,
                                 'is_visible': True},
         'operating_status': {'allow_post': False, 'allow_put': False,
-                             'is_visible': True}
+                             'is_visible': True},
+        'agent': {'allow_post': True, 'allow_put': False,
+                  'validate': {'type:uuid_or_none': None},
+                  'default': None,
+                  'is_visible': True},
     },
     'listeners': {
         'id': {'allow_post': False, 'allow_put': False,
