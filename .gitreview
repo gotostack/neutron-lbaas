@@ -1,4 +1,4 @@
 [gerrit]
-host=review.openstack.org
+host=review.et.letv.com
 port=29418
-project=openstack/neutron-lbaas.git
+project=iaas/openstack/neutron-lbaas.git
