@@ -929,6 +929,7 @@ class LoadBalancerPluginv2(loadbalancerv2.LoadBalancerPluginBaseV2):
             status[key] = value
         try:
             status['name'] = getattr(obj, 'name')
+            status["vip_address"] = getattr(obj, 'vip_address')
         except AttributeError:
             pass
         return status
