@@ -1059,3 +1059,75 @@ class LoadBalancerPluginv2(loadbalancerv2.LoadBalancerPluginBaseV2):
 
     def get_member(self, context, id, fields=None):
         pass
+
+    def _check_listener_exists(self, context, listener_id):
+        if not self.db._resource_exists(context, models.Listener, listener_id):
+            raise loadbalancerv2.EntityNotFound(
+                name=models.Listener.NAME, id=listener_id)
+
+    def create_listener_rule(self, context, listener_id, rule):
+        self._check_listener_exists(context, listener_id)
+        db_listener = self.db.get_listener(context, listener_id)
+        self.db.test_and_set_status(context, models.LoadBalancer,
+                                    db_listener.loadbalancer.id,
+                                    constants.PENDING_UPDATE)
+        rule = rule.get('rule')
+        try:
+            rule_db = self.db.create_listener_rule(context, rule, listener_id)
+        except Exception as exc:
+            self.db.update_loadbalancer_provisioning_status(
+                context, db_listener.loadbalancer.id)
+            raise exc
+
+        driver = self._get_driver_for_loadbalancer(
+            context, db_listener.loadbalancer.id)
+        self._call_driver_operation(context,
+                                    driver.rule.create,
+                                    rule_db)
+
+        return self.db.get_listener_rule(context, rule_db.id).to_api_dict()
+
+    def update_listener_rule(self, context, id, listener_id, rule):
+        self._check_listener_exists(context, listener_id)
+        rule = rule.get('rule')
+        old_rule = self.db.get_listener_rule(context, id)
+        self.db.test_and_set_status(context, models.LoadBalancer,
+                                    old_rule.listener.loadbalancer_id,
+                                    constants.PENDING_UPDATE)
+        try:
+            updated_rule = self.db.update_listener_rule(context, id, rule)
+        except Exception as exc:
+            self.db.update_loadbalancer_provisioning_status(
+                context, old_rule.listener.loadbalancer_id)
+            raise exc
+
+        driver = self._get_driver_for_loadbalancer(
+            context, updated_rule.listener.loadbalancer_id)
+        self._call_driver_operation(context,
+                                    driver.rule.update,
+                                    updated_rule,
+                                    old_db_entity=old_rule)
+
+        return self.db.get_listener_rule(context, id).to_api_dict()
+
+    def delete_listener_rule(self, context, id, listener_id):
+        self._check_listener_exists(context, listener_id)
+        self.db.test_and_set_status(context, models.Rule, id,
+                                    constants.PENDING_DELETE)
+        db_rule = self.db.get_listener_rule(context, id)
+
+        driver = self._get_driver_for_loadbalancer(
+            context, db_rule.listener.loadbalancer_id)
+        self._call_driver_operation(context,
+                                    driver.rule.delete,
+                                    db_rule)
+
+    def get_listener_rules(self, context, listener_id,
+                           filters=None, fields=None):
+        self._check_listener_exists(context, listener_id)
+        return [rule.to_api_dict() for rule in self.db.get_listener_rules(
+            context, filters=filters)]
+
+    def get_listener_rule(self, context, id, listener_id, fields=None):
+        self._check_listener_exists(context, listener_id)
+        return self.db.get_listener_rule(context, id).to_api_dict()

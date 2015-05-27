@@ -75,6 +75,7 @@ class HaproxyNSDriver(agent_device_driver.AgentDeviceDriver):
         self._pool = PoolManager(self)
         self._member = MemberManager(self)
         self._healthmonitor = HealthMonitorManager(self)
+        self._rule = RuleManager(self)
 
     @property
     def loadbalancer(self):
@@ -95,6 +96,10 @@ class HaproxyNSDriver(agent_device_driver.AgentDeviceDriver):
     @property
     def healthmonitor(self):
         return self._healthmonitor
+
+    @property
+    def rule(self):
+        return self._rule
 
     def get_name(self):
         return DRIVER_NAME
@@ -456,6 +461,26 @@ class HealthMonitorManager(agent_device_driver.BaseHealthMonitorManager):
     def delete(self, hm):
         hm.pool.healthmonitor = None
         self.driver.loadbalancer.refresh(hm.pool.listener.loadbalancer)
+
+
+class RuleManager(agent_device_driver.BaseRuleManager):
+
+    def _remove_rule(self, listener, rule_id):
+        index_to_remove = None
+        for index, rule in enumerate(listener.rules):
+            if rule.id == rule_id:
+                index_to_remove = index
+        listener.rules.pop(index_to_remove)
+
+    def update(self, old_rule, new_rule):
+        self.driver.loadbalancer.refresh(new_rule.listener.loadbalancer)
+
+    def create(self, rule):
+        self.driver.loadbalancer.refresh(rule.listener.loadbalancer)
+
+    def delete(self, rule):
+        self._remove_rule(rule.listener, rule.id)
+        self.driver.loadbalancer.refresh(rule.listener.loadbalancer)
 
 
 def kill_pids_in_file(pid_path):

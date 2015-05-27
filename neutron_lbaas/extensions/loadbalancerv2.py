@@ -351,6 +351,34 @@ SUB_RESOURCE_ATTRIBUTE_MAP = {
                           'is_visible': True},
 
         }
+    },
+    'rules': {
+        'parent': {'collection_name': 'listeners',
+                   'member_name': 'listener'},
+        'parameters': {
+            'id': {'allow_post': False, 'allow_put': False,
+                   'validate': {'type:uuid': None},
+                   'is_visible': True,
+                   'primary_key': True},
+            'tenant_id': {'allow_post': True, 'allow_put': False,
+                          'validate': {'type:string': None},
+                          'required_by_policy': True,
+                          'is_visible': True},
+            'name': {'allow_post': True, 'allow_put': True,
+                     'validate': {'type:string': None},
+                     'is_visible': True, 'default': ''},
+            'description': {'allow_post': True, 'allow_put': True,
+                            'validate': {'type:string': None},
+                            'is_visible': True, 'default': ''},
+            'rule': {'allow_post': True, 'allow_put': True,
+                     'validate': {'type:string': None},
+                     'is_visible': True},
+            'admin_state_up': {'allow_post': True, 'allow_put': True,
+                               'default': True,
+                               'convert_to': attr.convert_to_boolean,
+                               'is_visible': True}
+
+        }
     }
 }
 
@@ -587,4 +615,27 @@ class LoadBalancerPluginBaseV2(service_base.ServicePluginBase):
 
     @abc.abstractmethod
     def statuses(self, context, loadbalancer_id):
+        pass
+
+    @abc.abstractmethod
+    def get_listener_rules(self, context, listener_id,
+                           filters=None,
+                           fields=None):
+        pass
+
+    @abc.abstractmethod
+    def get_listener_rule(self, context, id, listener_id,
+                          fields=None):
+        pass
+
+    @abc.abstractmethod
+    def create_listener_rule(self, context, listener_id, rule):
+        pass
+
+    @abc.abstractmethod
+    def update_listener_rule(self, context, id, listener_id, rule):
+        pass
+
+    @abc.abstractmethod
+    def delete_listener_rule(self, context, id, listener_id):
         pass

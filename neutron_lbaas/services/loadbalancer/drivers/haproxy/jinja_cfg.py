@@ -255,6 +255,10 @@ def _transform_listener(listener, haproxy_base_dir):
         'protocol_mode': PROTOCOL_MAP[listener.protocol],
         'protocol': listener.protocol
     }
+
+    if len(listener.rules) > 0:
+        ret_value['rules'] = _transform_rules(listener)
+
     if listener.connection_limit and listener.connection_limit > -1:
         ret_value['connection_limit'] = listener.connection_limit
     if listener.default_pool:
@@ -270,6 +274,13 @@ def _transform_listener(listener, haproxy_base_dir):
             _store_listener_crt(haproxy_base_dir, listener, c)
         ret_value['crt_dir'] = data_dir
     return ret_value
+
+
+def _transform_rules(listener):
+    """Transforms rules of a listener."""
+    rules = [r.rule
+             for r in listener.rules if r.admin_state_up]
+    return rules
 
 
 def _transform_pool(pool):

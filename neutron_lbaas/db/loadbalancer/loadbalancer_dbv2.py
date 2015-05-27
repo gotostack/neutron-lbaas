@@ -549,3 +549,38 @@ class LoadBalancerPluginDbv2(base_db.CommonDbMixin,
                                           loadbalancer_id)
         return data_models.LoadBalancerStatistics.from_sqlalchemy_model(
             loadbalancer.stats)
+
+    def create_listener_rule(self, context, rule, listener_id):
+        with context.session.begin(subtransactions=True):
+            self._load_id_and_tenant_id(context, rule)
+            rule['listener_id'] = listener_id
+            rule['provisioning_status'] = constants.PENDING_CREATE
+            rule['operating_status'] = lb_const.OFFLINE
+            rule_db = models.Rule(**rule)
+            context.session.add(rule_db)
+
+        context.session.refresh(rule_db.listener)
+        return data_models.Rule.from_sqlalchemy_model(rule_db)
+
+    def update_listener_rule(self, context, id, rule):
+        with context.session.begin(subtransactions=True):
+            rule_db = self._get_resource(context, models.Rule, id)
+            rule_db.update(rule)
+        context.session.refresh(rule_db)
+        return data_models.Rule.from_sqlalchemy_model(rule_db)
+
+    def delete_listener_rule(self, context, id):
+        with context.session.begin(subtransactions=True):
+            rule_db = self._get_resource(context, models.Rule, id)
+            context.session.delete(rule_db)
+
+    def get_listener_rules(self, context, filters=None):
+        filters = filters or {}
+        rule_dbs = self._get_resources(context, models.Rule,
+                                       filters=filters)
+        return [data_models.Rule.from_sqlalchemy_model(rule_db)
+                for rule_db in rule_dbs]
+
+    def get_listener_rule(self, context, id):
+        rule_db = self._get_resource(context, models.Rule, id)
+        return data_models.Rule.from_sqlalchemy_model(rule_db)

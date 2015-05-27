@@ -144,6 +144,19 @@ class LoadBalancerAgentApi(object):
         cctxt.cast(context, 'delete_healthmonitor',
                    healthmonitor=healthmonitor)
 
+    def create_rule(self, context, rule, host):
+        cctxt = self.client.prepare(server=host)
+        cctxt.cast(context, 'create_rule', rule=rule)
+
+    def update_rule(self, context, old_rule, rule, host):
+        cctxt = self.client.prepare(server=host)
+        cctxt.cast(context, 'update_rule', old_rule=old_rule,
+                   rule=rule)
+
+    def delete_rule(self, context, rule, host):
+        cctxt = self.client.prepare(server=host)
+        cctxt.cast(context, 'delete_rule', rule=rule)
+
 
 class LoadBalancerManager(driver_base.BaseLoadBalancerManager):
 
@@ -299,6 +312,34 @@ class HealthMonitorManager(driver_base.BaseHealthMonitorManager):
             context, healthmonitor, agent['host'])
 
 
+class RuleManager(driver_base.BaseRuleManager):
+
+    def update(self, context, old_rule, rule):
+        super(RuleManager, self).update(context, old_rule, rule)
+        agent = self.driver.get_loadbalancer_agent(
+            context, rule.listener.loadbalancer.id)
+        self.driver.agent_rpc.update_rule(context, old_rule, rule,
+                                          agent['host'])
+
+    def create(self, context, rule):
+        super(RuleManager, self).create(context, rule)
+        agent = self.driver.get_loadbalancer_agent(
+            context, rule.listener.loadbalancer.id)
+        self.driver.agent_rpc.create_rule(context, rule, agent['host'])
+
+    def delete(self, context, rule):
+        super(RuleManager, self).delete(context, rule)
+        agent = self.driver.get_loadbalancer_agent(
+            context, rule.listener.loadbalancer.id)
+        # TODO(blogan): Rethink deleting from the database and updating the lb
+        # status here. May want to wait until the agent actually deletes it.
+        # Doing this now to keep what v1 had.
+        self.driver.plugin.db.delete_listener_rule(context, rule.id)
+        self.driver.plugin.db.update_loadbalancer_provisioning_status(
+            context, rule.listener.loadbalancer.id)
+        self.driver.agent_rpc.delete_rule(context, rule, agent['host'])
+
+
 class AgentDriverBase(driver_base.LoadBalancerBaseDriver):
 
     # name of device driver that should be used by the agent;
@@ -315,6 +356,7 @@ class AgentDriverBase(driver_base.LoadBalancerBaseDriver):
         self.pool = PoolManager(self)
         self.member = MemberManager(self)
         self.health_monitor = HealthMonitorManager(self)
+        self.rule = RuleManager(self)
 
         self.agent_rpc = LoadBalancerAgentApi(lb_const.LOADBALANCER_AGENTV2)
 

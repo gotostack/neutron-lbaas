@@ -665,3 +665,49 @@ class HealthMonitorManager(driver_base.BaseHealthMonitorManager):
             raise e
 
         self.successful_completion(context, hm, delete=True)
+
+
+class RuleManager(driver_base.BaseRuleManager):
+
+    def _remove_rule(self, listener, rule_id):
+        index_to_remove = None
+        for index, rule in enumerate(listener.rules):
+            if rule.id == rule_id:
+                index_to_remove = index
+        listener.rules.pop(index_to_remove)
+
+    def update(self, context, old_rule, new_rule):
+        super(RuleManager, self).update(context, old_rule,
+                                        new_rule)
+        try:
+            self.driver.load_balancer.refresh(
+                context, old_rule.listener.loadbalancer)
+        except Exception as e:
+            self.failed_completion(context, new_rule)
+            raise e
+
+        self.successful_completion(context, new_rule)
+
+    def create(self, context, rule):
+        super(RuleManager, self).create(context, rule)
+        try:
+            self.driver.load_balancer.refresh(
+                context, rule.listener.loadbalancer)
+        except Exception as e:
+            self.failed_completion(context, rule)
+            raise e
+
+        self.successful_completion(context, rule)
+
+    def delete(self, context, rule):
+        super(RuleManager, self).delete(context, rule)
+        listener = rule.listener
+        self._remove_rule(listener, rule.id)
+        try:
+            self.driver.load_balancer.refresh(
+                context, listener.loadbalancer)
+        except Exception as e:
+            self.failed_completion(context, rule)
+            raise e
+
+        self.successful_completion(context, rule, delete=True)
