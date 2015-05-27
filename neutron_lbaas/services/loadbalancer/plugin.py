@@ -1059,3 +1059,78 @@ class LoadBalancerPluginv2(loadbalancerv2.LoadBalancerPluginBaseV2):
 
     def get_member(self, context, id, fields=None):
         pass
+
+    def _check_listener_exists(self, context, listener_id):
+        if not self.db._resource_exists(context, models.Listener, listener_id):
+            raise loadbalancerv2.EntityNotFound(
+                name=models.Listener.NAME, id=listener_id)
+
+    def create_listener_condition(self, context, listener_id, condition):
+        self._check_listener_exists(context, listener_id)
+        db_listener = self.db.get_listener(context, listener_id)
+        self.db.test_and_set_status(context, models.LoadBalancer,
+                                    db_listener.loadbalancer.id,
+                                    constants.PENDING_UPDATE)
+        condition = condition.get('condition')
+        try:
+            condition_db = self.db.create_listener_condition(context, condition, listener_id)
+        except Exception as exc:
+            self.db.update_loadbalancer_provisioning_status(
+                context, db_listener.loadbalancer.id)
+            raise exc
+
+        driver = self._get_driver_for_loadbalancer(
+            context, db_listener.loadbalancer.id)
+        self._call_driver_operation(context,
+                                    driver.condition.create,
+                                    condition_db)
+
+        return self.db.get_listener_condition(context,
+                                              condition_db.id).to_api_dict()
+
+    def update_listener_condition(self, context, id, listener_id, condition):
+        self._check_listener_exists(context, listener_id)
+        condition = condition.get('condition')
+        old_condition = self.db.get_listener_condition(context, id)
+        self.db.test_and_set_status(context, models.LoadBalancer,
+                                    old_condition.listener.loadbalancer_id,
+                                    constants.PENDING_UPDATE)
+        try:
+            updated_condition = self.db.update_listener_condition(
+                context, id, condition)
+        except Exception as exc:
+            self.db.update_loadbalancer_provisioning_status(
+                context, old_condition.listener.loadbalancer_id)
+            raise exc
+
+        driver = self._get_driver_for_loadbalancer(
+            context, updated_condition.listener.loadbalancer_id)
+        self._call_driver_operation(context,
+                                    driver.condition.update,
+                                    updated_condition,
+                                    old_db_entity=old_condition)
+
+        return self.db.get_listener_condition(context, id).to_api_dict()
+
+    def delete_listener_condition(self, context, id, listener_id):
+        self._check_listener_exists(context, listener_id)
+        self.db.test_and_set_status(context, models.Condition, id,
+                                    constants.PENDING_DELETE)
+        db_condition = self.db.get_listener_condition(context, id)
+
+        driver = self._get_driver_for_loadbalancer(
+            context, db_condition.listener.loadbalancer_id)
+        self._call_driver_operation(context,
+                                    driver.condition.delete,
+                                    db_condition)
+
+    def get_listener_conditions(self, context, listener_id,
+                                filters=None, fields=None):
+        self._check_listener_exists(context, listener_id)
+        return [condition.to_api_dict()
+                for condition in self.db.get_listener_conditions(
+                    context, filters=filters)]
+
+    def get_listener_condition(self, context, id, listener_id, fields=None):
+        self._check_listener_exists(context, listener_id)
+        return self.db.get_listener_condition(context, id).to_api_dict()

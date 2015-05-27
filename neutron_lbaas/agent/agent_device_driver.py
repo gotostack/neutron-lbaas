@@ -106,3 +106,7 @@ class BaseMemberManager(BaseManager):
 
 class BaseHealthMonitorManager(BaseManager):
     pass
+
+
+class BaseConditionManager(BaseManager):
+    pass

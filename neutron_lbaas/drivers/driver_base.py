@@ -42,6 +42,7 @@ class LoadBalancerBaseDriver(object):
     pool = NotImplementedManager()
     member = NotImplementedManager()
     health_monitor = NotImplementedManager()
+    condition = NotImplementedManager()
 
     def __init__(self, plugin):
         self.plugin = plugin
@@ -87,3 +88,11 @@ class BaseHealthMonitorManager(driver_mixins.BaseManagerMixin):
     @property
     def db_delete_method(self):
         return self.driver.plugin.db.delete_healthmonitor
+
+
+class BaseConditionManager(driver_mixins.BaseManagerMixin):
+    model_class = models.Condition
+
+    @property
+    def db_delete_method(self):
+        return self.driver.plugin.db.delete_condition

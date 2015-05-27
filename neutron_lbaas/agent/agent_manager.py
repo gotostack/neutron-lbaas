@@ -404,3 +404,31 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):
         healthmonitor = data_models.HealthMonitor.from_dict(healthmonitor)
         driver = self._get_driver(healthmonitor.pool.listener.loadbalancer.id)
         driver.healthmonitor.delete(healthmonitor)
+
+    def create_condition(self, context, condition):
+        condition = data_models.Condition.from_dict(condition)
+        driver = self._get_driver(condition.listener.loadbalancer.id)
+        try:
+            driver.condition.create(condition)
+        except Exception:
+            self._handle_failed_driver_call('create', condition,
+                                            driver.get_name())
+        else:
+            self._update_statuses(condition)
+
+    def update_condition(self, context, old_condition, condition):
+        condition = data_models.Condition.from_dict(condition)
+        old_condition = data_models.Condition.from_dict(old_condition)
+        driver = self._get_driver(condition.listener.loadbalancer.id)
+        try:
+            driver.condition.update(old_condition, condition)
+        except Exception:
+            self._handle_failed_driver_call('update', condition,
+                                            driver.get_name())
+        else:
+            self._update_statuses(condition)
+
+    def delete_condition(self, context, condition):
+        condition = data_models.Condition.from_dict(condition)
+        driver = self._get_driver(condition.listener.loadbalancer.id)
+        driver.condition.delete(condition)

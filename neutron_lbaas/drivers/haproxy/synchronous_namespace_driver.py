@@ -665,3 +665,49 @@ class HealthMonitorManager(driver_base.BaseHealthMonitorManager):
             raise e
 
         self.successful_completion(context, hm, delete=True)
+
+
+class ConditionManager(driver_base.BaseConditionManager):
+
+    def _remove_condition(self, listener, condition_id):
+        index_to_remove = None
+        for index, condition in enumerate(listener.conditions):
+            if condition.id == condition_id:
+                index_to_remove = index
+        listener.conditions.pop(index_to_remove)
+
+    def update(self, context, old_condition, new_condition):
+        super(ConditionManager, self).update(context, old_condition,
+                                             new_condition)
+        try:
+            self.driver.load_balancer.refresh(
+                context, old_condition.listener.loadbalancer)
+        except Exception as e:
+            self.failed_completion(context, new_condition)
+            raise e
+
+        self.successful_completion(context, new_condition)
+
+    def create(self, context, condition):
+        super(ConditionManager, self).create(context, condition)
+        try:
+            self.driver.load_balancer.refresh(
+                context, condition.listener.loadbalancer)
+        except Exception as e:
+            self.failed_completion(context, condition)
+            raise e
+
+        self.successful_completion(context, condition)
+
+    def delete(self, context, condition):
+        super(ConditionManager, self).delete(context, condition)
+        listener = condition.listener
+        self._remove_condition(listener, condition.id)
+        try:
+            self.driver.load_balancer.refresh(
+                context, listener.loadbalancer)
+        except Exception as e:
+            self.failed_completion(context, condition)
+            raise e
+
+        self.successful_completion(context, condition, delete=True)

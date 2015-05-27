@@ -549,3 +549,38 @@ class LoadBalancerPluginDbv2(base_db.CommonDbMixin,
                                           loadbalancer_id)
         return data_models.LoadBalancerStatistics.from_sqlalchemy_model(
             loadbalancer.stats)
+
+    def create_listener_condition(self, context, condition, listener_id):
+        with context.session.begin(subtransactions=True):
+            self._load_id_and_tenant_id(context, condition)
+            condition['listener_id'] = listener_id
+            condition['provisioning_status'] = constants.PENDING_CREATE
+            condition['operating_status'] = lb_const.OFFLINE
+            condition_db = models.Condition(**condition)
+            context.session.add(condition_db)
+
+        context.session.refresh(condition_db.listener)
+        return data_models.Condition.from_sqlalchemy_model(condition_db)
+
+    def update_listener_condition(self, context, id, condition):
+        with context.session.begin(subtransactions=True):
+            condition_db = self._get_resource(context, models.Condition, id)
+            condition_db.update(condition)
+        context.session.refresh(condition_db)
+        return data_models.Condition.from_sqlalchemy_model(condition_db)
+
+    def delete_listener_condition(self, context, id):
+        with context.session.begin(subtransactions=True):
+            condition_db = self._get_resource(context, models.Condition, id)
+            context.session.delete(condition_db)
+
+    def get_listener_conditions(self, context, filters=None):
+        filters = filters or {}
+        condition_dbs = self._get_resources(context, models.Condition,
+                                            filters=filters)
+        return [data_models.Condition.from_sqlalchemy_model(condition_db)
+                for condition_db in condition_dbs]
+
+    def get_listener_condition(self, context, id):
+        condition_db = self._get_resource(context, models.Condition, id)
+        return data_models.Condition.from_sqlalchemy_model(condition_db)

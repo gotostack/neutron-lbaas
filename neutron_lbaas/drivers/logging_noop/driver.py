@@ -37,6 +37,7 @@ class LoggingNoopLoadBalancerDriver(driver_base.LoadBalancerBaseDriver):
         self.pool = LoggingNoopPoolManager(self)
         self.member = LoggingNoopMemberManager(self)
         self.health_monitor = LoggingNoopHealthMonitorManager(self)
+        self.condition = LoggingNoopConditionManager(self)
 
 
 class LoggingNoopCommonManager(object):
@@ -150,3 +151,19 @@ class LoggingNoopHealthMonitorManager(LoggingNoopCommonManager,
         super(LoggingNoopHealthMonitorManager, self).delete(context,
                                                             healthmonitor)
         self.successful_completion(context, healthmonitor, delete=True)
+
+
+class LoggingNoopConditionManager(LoggingNoopCommonManager,
+                                  driver_base.BaseConditionManager):
+    def create(self, context, condition):
+        super(LoggingNoopConditionManager, self).create(context, condition)
+        self.successful_completion(context, condition)
+
+    def update(self, context, old_condition, condition):
+        super(LoggingNoopConditionManager, self).update(context, old_condition,
+                                                        condition)
+        self.successful_completion(context, condition)
+
+    def delete(self, context, condition):
+        super(LoggingNoopConditionManager, self).delete(context, condition)
+        self.successful_completion(context, condition, delete=True)

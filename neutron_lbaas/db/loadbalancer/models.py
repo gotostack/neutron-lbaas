@@ -221,6 +221,28 @@ class SNI(model_base.BASEV2):
         return self.listener.loadbalancer
 
 
+class Condition(model_base.BASEV2, models_v2.HasId, models_v2.HasTenant):
+    """Represents a condition for loadbalancer listener."""
+
+    NAME = 'condition'
+
+    __tablename__ = "lbaas_conditions"
+
+    name = sa.Column(sa.String(255))
+    description = sa.Column(sa.String(255))
+    listener_id = sa.Column(sa.String(36),
+                            sa.ForeignKey("lbaas_listeners.id"),
+                            nullable=False)
+    condition = sa.Column(sa.String(1024), nullable=False)
+    admin_state_up = sa.Column(sa.Boolean(), nullable=False)
+    operating_status = sa.Column(sa.String(16), nullable=False)
+    provisioning_status = sa.Column(sa.String(16), nullable=False)
+
+    @property
+    def root_loadbalancer(self):
+        return self.listener.loadbalancer
+
+
 class Listener(model_base.BASEV2, models_v2.HasId, models_v2.HasTenant):
     """Represents a v2 neutron listener."""
 
@@ -265,6 +287,11 @@ class Listener(model_base.BASEV2, models_v2.HasId, models_v2.HasTenant):
         PoolV2, backref=orm.backref("listener", uselist=False), lazy='joined')
     loadbalancer = orm.relationship(
         LoadBalancer, backref=orm.backref("listeners"), lazy='joined')
+    conditions = orm.relationship(
+        Condition,
+        backref=orm.backref("listener", uselist=False),
+        cascade="all, delete-orphan",
+        lazy='joined')
 
     @property
     def root_loadbalancer(self):

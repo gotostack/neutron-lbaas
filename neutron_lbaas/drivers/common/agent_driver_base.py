@@ -144,6 +144,19 @@ class LoadBalancerAgentApi(object):
         cctxt.cast(context, 'delete_healthmonitor',
                    healthmonitor=healthmonitor)
 
+    def create_condition(self, context, condition, host):
+        cctxt = self.client.prepare(server=host)
+        cctxt.cast(context, 'create_condition', condition=condition)
+
+    def update_condition(self, context, old_condition, condition, host):
+        cctxt = self.client.prepare(server=host)
+        cctxt.cast(context, 'update_condition', old_condition=old_condition,
+                   condition=condition)
+
+    def delete_condition(self, context, condition, host):
+        cctxt = self.client.prepare(server=host)
+        cctxt.cast(context, 'delete_condition', condition=condition)
+
 
 class LoadBalancerManager(driver_base.BaseLoadBalancerManager):
 
@@ -299,6 +312,38 @@ class HealthMonitorManager(driver_base.BaseHealthMonitorManager):
             context, healthmonitor, agent['host'])
 
 
+class ConditionManager(driver_base.BaseConditionManager):
+
+    def update(self, context, old_condition, condition):
+        super(ConditionManager, self).update(context,
+                                             old_condition, condition)
+        agent = self.driver.get_loadbalancer_agent(
+            context, condition.listener.loadbalancer.id)
+        self.driver.agent_rpc.update_condition(context,
+                                               old_condition, condition,
+                                               agent['host'])
+
+    def create(self, context, condition):
+        super(ConditionManager, self).create(context, condition)
+        agent = self.driver.get_loadbalancer_agent(
+            context, condition.listener.loadbalancer.id)
+        self.driver.agent_rpc.create_condition(context,
+                                               condition, agent['host'])
+
+    def delete(self, context, condition):
+        super(ConditionManager, self).delete(context, condition)
+        agent = self.driver.get_loadbalancer_agent(
+            context, condition.listener.loadbalancer.id)
+        # TODO(blogan): Rethink deleting from the database and updating the lb
+        # status here. May want to wait until the agent actually deletes it.
+        # Doing this now to keep what v1 had.
+        self.driver.plugin.db.delete_listener_condition(context, condition.id)
+        self.driver.plugin.db.update_loadbalancer_provisioning_status(
+            context, condition.listener.loadbalancer.id)
+        self.driver.agent_rpc.delete_condition(context,
+                                               condition, agent['host'])
+
+
 class AgentDriverBase(driver_base.LoadBalancerBaseDriver):
 
     # name of device driver that should be used by the agent;
@@ -315,6 +360,7 @@ class AgentDriverBase(driver_base.LoadBalancerBaseDriver):
         self.pool = PoolManager(self)
         self.member = MemberManager(self)
         self.health_monitor = HealthMonitorManager(self)
+        self.condition = ConditionManager(self)
 
         self.agent_rpc = LoadBalancerAgentApi(lb_const.LOADBALANCER_AGENTV2)
 

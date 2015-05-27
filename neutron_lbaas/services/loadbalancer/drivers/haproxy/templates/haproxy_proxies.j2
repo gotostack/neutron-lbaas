@@ -46,6 +46,11 @@ frontend {{ listener.id }}
 {% endif %}
     {{ bind_macro(constants, listener, lb_vip_address)|trim() }}
     mode {{ listener.protocol_mode }}
+{% if listener.conditions is defined %}
+{% for condition in listener.conditions %}
+    {{ condition }}
+{% endfor %}
+{% endif %}
 {% if listener.default_pool %}
     default_backend {{ listener.default_pool.id }}
 {% endif %}
